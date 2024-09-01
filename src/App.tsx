@@ -1,24 +1,19 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from 'react';
+import DataInput from './app/components/DataInput';
+import BiofeedbackDashboard from './app/components/BiofeedbackDashboard';
 
 function App() {
+  const [showInput, setShowInput] = useState(false);
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+      <header>
+        <h1>Yash's Biofeedback Tracker</h1>
+        <button onClick={() => setShowInput(!showInput)}>
+          {showInput ? 'View Dashboard' : 'Input Data'}
+        </button>
       </header>
+      {showInput ? <DataInput /> : <BiofeedbackDashboard />}
     </div>
   );
 }
