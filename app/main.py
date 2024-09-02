@@ -6,8 +6,9 @@ from datetime import datetime, timedelta, date, time
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from fastapi.middleware.cors import CORSMiddleware
+import json
 
 app = FastAPI()
 
@@ -57,24 +58,21 @@ async def create_biofeedback_entry(entry: BiofeedbackEntry):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        # Convert MetricData objects to dictionaries
+        metrics_dict = {
+            key: {"score": value.score, "notes": value.notes}
+            for key, value in entry.metrics.items()
+        }
+        
         # Insert new entry without clearing existing data
         cur.execute("""
-            INSERT INTO biofeedback (date, time, mood, gym_performance, soreness, sleep_quality, 
-            energy_levels, sex_drive, hunger_levels, cravings, digestion, additional_notes, summary)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO biofeedback (date, time, metrics, additional_notes, summary)
+            VALUES (%s, %s, %s, %s, %s)
             RETURNING id
         """, (
             entry.date,
             entry.time,
-            entry.metrics.get('mood', MetricData()).score,
-            entry.metrics.get('gym_performance', MetricData()).score,
-            entry.metrics.get('soreness', MetricData()).score,
-            entry.metrics.get('sleep_quality', MetricData()).score,
-            entry.metrics.get('energy_levels', MetricData()).score,
-            entry.metrics.get('sex_drive', MetricData()).score,
-            entry.metrics.get('hunger_levels', MetricData()).score,
-            entry.metrics.get('cravings', MetricData()).score,
-            entry.metrics.get('digestion', MetricData()).score,
+            Json(metrics_dict),  # Use the converted dictionary here
             entry.additional_notes,
             entry.summary
         ))
@@ -113,10 +111,18 @@ async def get_biofeedback_entries(
         query += " ORDER BY date DESC"
         cur.execute(query, params)
         entries = cur.fetchall()
+        
+        # Ensure metrics is a dictionary, handle NULL values
+        for entry in entries:
+            if entry['metrics'] is None:
+                entry['metrics'] = {}
+        
         return entries
     except psycopg2.Error as e:
+        print(f"Database error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
+        print(f"Unexpected error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
     finally:
         cur.close()
@@ -140,6 +146,54 @@ async def clear_biofeedback_entries():
     except psycopg2.Error as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        cur.close()
+        conn.close()
+
+@app.get("/biofeedback/debug")
+async def debug_biofeedback_entries():
+    """
+    Retrieves all biofeedback entries for debugging purposes.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM biofeedback ORDER BY date DESC")
+        entries = cur.fetchall()
+        
+        # Ensure metrics is a dictionary, handle NULL values
+        for entry in entries:
+            if entry['metrics'] is None:
+                entry['metrics'] = {}
+        
+        return {"total_entries": len(entries), "entries": entries}
+    except psycopg2.Error as e:
+        print(f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    finally:
+        cur.close()
+        conn.close()
+
+@app.get("/biofeedback/schema")
+async def get_biofeedback_schema():
+    """
+    Retrieves the schema of the biofeedback table.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns
+            WHERE table_name = 'biofeedback';
+        """)
+        columns = cur.fetchall()
+        return {"schema": columns}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()
         conn.close()

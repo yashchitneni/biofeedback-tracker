@@ -1,20 +1,16 @@
-import React, { useState } from 'react';
-import DataInput from './app/components/DataInput';
-import BiofeedbackDashboard from './app/components/BiofeedbackDashboard';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import DataEntryPage from './components/DataEntryPage';
+import BiofeedbackChart from './components/BiofeedbackChart';
 
 function App() {
-  const [showInput, setShowInput] = useState(false);
-
   return (
-    <div className="App">
-      <header>
-        <h1>Yash's Biofeedback Tracker</h1>
-        <button onClick={() => setShowInput(!showInput)}>
-          {showInput ? 'View Dashboard' : 'Input Data'}
-        </button>
-      </header>
-      {showInput ? <DataInput /> : <BiofeedbackDashboard />}
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<BiofeedbackChart />} />
+        <Route path="/data-entry" element={<DataEntryPage />} />
+      </Routes>
+    </Router>
   );
 }
 
